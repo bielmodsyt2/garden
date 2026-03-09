@@ -1,4 +1,4 @@
--- Gui principal
+-- Gui principal2
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game:GetService("CoreGui")
 
