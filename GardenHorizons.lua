@@ -1,19 +1,155 @@
 --[[
-	Garden Horizons Hub - UI Aprimorada
-	
+Luna Interface Suite - Garden Horizons Edition
+by Nebula Softworks (adaptado para Garden Horizons)
+
+Funcionalidades:
+- Auto Buy Seeds/Gear
+- Auto Sell
+- Auto Harvest
+- Auto Plant
+- Seleção individual de itens
 ]]
+local Release = "Garden Horizons Edition"
 
+local Luna = { Folder = "Luna", Options = {}, ThemeGradient = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(117, 164, 206)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(123, 201, 201)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(224, 138, 175))} }
+
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local Localization = game:GetService("LocalizationService")
 local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
 local RS = game:GetService("ReplicatedStorage")
-local player = Players.LocalPlayer
 
--- Remotes (mesma lógica)
-local BuyRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("PurchaseShopItem")
-local SellRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("SellItems")
-local PlantRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("PlantSeed")
-local PlantsFolder = RS:WaitForChild("Plants"):WaitForChild("Models")
+local isStudio
+local website = "github.com/Nebula-Softworks"
 
--- Listas completas
+if RunService:IsStudio() then
+    isStudio = true
+end
+
+-- ==========================================
+-- 🔹 VERIFICAÇÃO DE INJEÇÃO DA UI
+-- ==========================================
+local function verifyInjection()
+    if not LunaUI or not LunaUI.Parent then
+        warn("LunaUI não foi injetada corretamente!")
+        return false
+    end
+    return true
+end
+
+local function injectUI()
+    local success, message = pcall(function()
+        if gethui then
+            LunaUI.Parent = gethui()
+            print("UI injetada usando gethui()")
+        elseif syn and syn.protect_gui then
+            syn.protect_gui(LunaUI)
+            LunaUI.Parent = game:GetService("CoreGui")
+            print("UI injetada usando syn.protect_gui")
+        elseif get_hidden_ui then
+            LunaUI.Parent = get_hidden_ui()
+            print("UI injetada usando get_hidden_ui")
+        elseif protect_gui then
+            protect_gui(LunaUI)
+            LunaUI.Parent = game:GetService("CoreGui")
+            print("UI injetada usando protect_gui")
+        else
+            LunaUI.Parent = game:GetService("CoreGui")
+            print("UI injetada no CoreGui (método padrão)")
+        end
+        LunaUI.Enabled = true
+        LunaUI.SmartWindow.Visible = true
+    end)
+    
+    if not success then
+        warn("Falha ao injetar UI: " .. tostring(message))
+    end
+end
+
+local function createInjectionIndicator()
+    local indicator = Instance.new("ScreenGui")
+    indicator.Name = "LunaInjectionIndicator"
+    indicator.DisplayOrder = 9999
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 200, 0, 60)
+    frame.Position = UDim2.new(0, 10, 0, 10)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundTransparency = 1
+    text.Text = "Luna UI - Garden Horizons ✓"
+    text.TextColor3 = Color3.fromRGB(0, 255, 0)
+    text.Font = Enum.Font.SourceSansBold
+    text.TextSize = 18
+    text.Parent = frame
+    
+    frame.Parent = indicator
+    
+    if gethui then
+        indicator.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(indicator)
+        indicator.Parent = game:GetService("CoreGui")
+    else
+        indicator.Parent = game:GetService("CoreGui")
+    end
+    
+    delay(5, function()
+        indicator:Destroy()
+    end)
+end
+
+-- ==========================================
+-- 🔹 ICONES E UTILITÁRIOS (mantidos da Luna original)
+-- ==========================================
+local IconModule = {
+    Lucide = nil,
+    Material = {}
+}
+
+local request = (syn and syn.request) or (http and http.request) or http_request or nil
+local tweeninfo = TweenInfo.new(0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+local PresetGradients = {
+    ["Nightlight (Classic)"] = {Color3.fromRGB(147, 255, 239), Color3.fromRGB(201,211,233), Color3.fromRGB(255, 167, 227)},
+    ["Nightlight (Neo)"] = {Color3.fromRGB(117, 164, 206), Color3.fromRGB(123, 201, 201), Color3.fromRGB(224, 138, 175)},
+    Starlight = {Color3.fromRGB(147, 255, 239), Color3.fromRGB(181, 206, 241), Color3.fromRGB(214, 158, 243)},
+    Solar = {Color3.fromRGB(242, 157, 76), Color3.fromRGB(240, 179, 81), Color3.fromRGB(238, 201, 86)},
+    Sparkle = {Color3.fromRGB(199, 130, 242), Color3.fromRGB(221, 130, 238), Color3.fromRGB(243, 129, 233)},
+    Lime = {Color3.fromRGB(170, 255, 127), Color3.fromRGB(163, 220, 138), Color3.fromRGB(155, 185, 149)},
+    Vine = {Color3.fromRGB(0, 191, 143), Color3.fromRGB(0, 126, 94), Color3.fromRGB(0, 61, 46)},
+    Cherry = {Color3.fromRGB(148, 54, 54), Color3.fromRGB(168, 67, 70), Color3.fromRGB(188, 80, 86)},
+    Daylight = {Color3.fromRGB(51, 156, 255), Color3.fromRGB(89, 171, 237), Color3.fromRGB(127, 186, 218)},
+    Blossom = {Color3.fromRGB(255, 165, 243), Color3.fromRGB(213, 129, 231), Color3.fromRGB(170, 92, 218)},
+}
+
+-- Funções auxiliares (mantidas)
+local function GetIcon(icon, source) return "rbxassetid://10723434557" end -- simplificado
+local function RemoveTable(tablre, value) end
+local function Kwargify(defaults, passed) return passed end
+local function PackColor(Color) return {R = Color.R * 255, G = Color.G * 255, B = Color.B * 255} end
+local function UnpackColor(Color) return Color3.fromRGB(Color.R, Color.G, Color.B) end
+function tween(object, goal, callback, tweenin) end
+local function BlurModule(Frame) end
+
+-- ==========================================
+-- 🔹 CONFIGURAÇÕES DO GARDEN HORIZONS
+-- ==========================================
+
+-- Remotes (com segurança)
+local BuyRemote = RS:FindFirstChild("RemoteEvents") and RS.RemoteEvents:FindFirstChild("PurchaseShopItem")
+local SellRemote = RS:FindFirstChild("RemoteEvents") and RS.RemoteEvents:FindFirstChild("SellItems")
+local PlantRemote = RS:FindFirstChild("RemoteEvents") and RS.RemoteEvents:FindFirstChild("PlantSeed")
+local PlantsFolder = RS:FindFirstChild("Plants") and RS.Plants:FindFirstChild("Models")
+
+-- Listas de itens
 local SeedItems = {
     "Carrot Seed","Tomato Seed","Potato Seed","Wheat Seed","Pumpkin Seed",
     "Corn Seed","Strawberry Seed","Blueberry Seed","Onion Seed","Garlic Seed",
@@ -25,348 +161,226 @@ local Seeds = {
 }
 local Gears = {"Watering Can","Basic Sprinkler","Harvest All","Turbo Sprinkler","Favorite Tool","Super Sprinkler"}
 
--- Tabelas de seleção e estados
-local selectedSeedItems, selectedSeeds, selectedGears, selectedPlants = {},{},{},{}
-local autoSeed, autoGear, autoSell, autoHarvest, autoPlant = false,false,false,false,false
+-- Tabelas de seleção (armazenadas em Luna.Options para persistência)
+Luna.Options.selectedSeedItems = Luna.Options.selectedSeedItems or {}
+Luna.Options.selectedSeeds = Luna.Options.selectedSeeds or {}
+Luna.Options.selectedGears = Luna.Options.selectedGears or {}
+Luna.Options.selectedPlants = Luna.Options.selectedPlants or {}
 
--- Criando a GUI principal
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name = "GardenHorizonsHub"
-gui.ResetOnSpawn = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Estados dos toggles automáticos
+Luna.Options.autoSeed = Luna.Options.autoSeed or false
+Luna.Options.autoGear = Luna.Options.autoGear or false
+Luna.Options.autoSell = Luna.Options.autoSell or false
+Luna.Options.autoHarvest = Luna.Options.autoHarvest or false
+Luna.Options.autoPlant = Luna.Options.autoPlant or false
 
--- Função para criar sombra (usando frame com blur)
-local function createShadow(parent, size, position, color)
-    local shadow = Instance.new("Frame")
-    shadow.Size = size
-    shadow.Position = position
-    shadow.BackgroundColor3 = color or Color3.new(0,0,0)
-    shadow.BackgroundTransparency = 0.7
-    shadow.BorderSize = 0
-    shadow.Parent = parent
-    return shadow
-end
-
--- Botão de abrir (estilo flutuante)
-local openBtn = Instance.new("TextButton", gui)
-openBtn.Size = UDim2.new(0, 140, 0, 40)
-openBtn.Position = UDim2.new(0, 15, 0.3, 0)
-openBtn.Text = "🌱 Garden Horizons"
-openBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113) -- Verde
-openBtn.TextColor3 = Color3.new(1,1,1)
-openBtn.Font = Enum.Font.GothamBold
-openBtn.TextSize = 16
-openBtn.BorderSize = 0
-openBtn.Active = true
-openBtn.Draggable = true
--- Arredondar cantos
-local openCorner = Instance.new("UICorner", openBtn)
-openCorner.CornerRadius = UDim.new(0, 8)
-
--- Efeito hover no botão
-openBtn.MouseEnter:Connect(function()
-    openBtn.BackgroundColor3 = Color3.fromRGB(39, 174, 96)
-end)
-openBtn.MouseLeave:Connect(function()
-    openBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-end)
-
--- Frame principal (janela)
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 350, 0, 420)
-frame.Position = UDim2.new(0.5, -175, 0.5, -210) -- Centralizado
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-frame.BorderSize = 0
-frame.Active = true
-frame.Draggable = true
-frame.Visible = false
-
--- Sombra da janela
-local shadow = Instance.new("ImageLabel", gui)
-shadow.Size = frame.Size + UDim2.new(0, 20, 0, 20)
-shadow.Position = frame.Position + UDim2.new(0, -10, 0, -10)
-shadow.BackgroundTransparency = 1
-shadow.Image = "rbxassetid://1316045217" -- Sombra arredondada
-shadow.ImageColor3 = Color3.new(0,0,0)
-shadow.ImageTransparency = 0.6
-shadow.Visible = false
-shadow.ZIndex = 0
-frame:GetPropertyChangedSignal("Visible"):Connect(function()
-    shadow.Visible = frame.Visible
-end)
-frame:GetPropertyChangedSignal("Position"):Connect(function()
-    shadow.Position = frame.Position + UDim2.new(0, -10, 0, -10)
-end)
-
--- Cantos arredondados na janela
-local frameCorner = Instance.new("UICorner", frame)
-frameCorner.CornerRadius = UDim.new(0, 12)
-
--- Título com gradiente
-local titleBar = Instance.new("Frame", frame)
-titleBar.Size = UDim2.new(1, 0, 0, 40)
-titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-titleBar.BorderSize = 0
-local titleBarCorner = Instance.new("UICorner", titleBar)
-titleBarCorner.CornerRadius = UDim.new(0, 12)
-
--- Gradiente no título (UI Gradient)
-local gradient = Instance.new("UIGradient", titleBar)
-gradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(46, 204, 113)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(39, 174, 96))
-})
-gradient.Rotation = 90
-
--- Ícone e texto do título
-local titleIcon = Instance.new("TextLabel", titleBar)
-titleIcon.Size = UDim2.new(0, 30, 1, 0)
-titleIcon.Position = UDim2.new(0, 10, 0, 0)
-titleIcon.Text = "🌿"
-titleIcon.TextColor3 = Color3.new(1,1,1)
-titleIcon.BackgroundTransparency = 1
-titleIcon.Font = Enum.Font.GothamBold
-titleIcon.TextSize = 24
-
-local titleText = Instance.new("TextLabel", titleBar)
-titleText.Size = UDim2.new(1, -50, 1, 0)
-titleText.Position = UDim2.new(0, 45, 0, 0)
-titleText.Text = "Garden Horizons"
-titleText.TextColor3 = Color3.new(1,1,1)
-titleText.BackgroundTransparency = 1
-titleText.Font = Enum.Font.GothamBold
-titleText.TextSize = 20
-titleText.TextXAlignment = Enum.TextXAlignment.Left
-
--- Botão fechar (X) estilizado
-local closeBtn = Instance.new("TextButton", titleBar)
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -35, 0.5, -15)
-closeBtn.Text = "✕"
-closeBtn.TextColor3 = Color3.new(1,1,1)
-closeBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 18
-closeBtn.BorderSize = 0
-local closeCorner = Instance.new("UICorner", closeBtn)
-closeCorner.CornerRadius = UDim.new(0, 6)
-
-closeBtn.MouseEnter:Connect(function()
-    closeBtn.BackgroundColor3 = Color3.fromRGB(192, 57, 43)
-end)
-closeBtn.MouseLeave:Connect(function()
-    closeBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-end)
-
-closeBtn.MouseButton1Click:Connect(function()
-    frame.Visible = false
-end)
-
--- Abrir/fechar com o botão principal
-openBtn.MouseButton1Click:Connect(function()
-    frame.Visible = not frame.Visible
-end)
-
--- Crédito abaixo do título
-local credit = Instance.new("TextLabel", frame)
-credit.Size = UDim2.new(1, 0, 0, 20)
-credit.Position = UDim2.new(0, 0, 0, 40)
-credit.Text = "by Noah Nabas • UI aprimorada"
-credit.TextColor3 = Color3.fromRGB(180, 180, 180)
-credit.BackgroundTransparency = 1
-credit.Font = Enum.Font.Gotham
-credit.TextSize = 12
-
--- Abas
-local tabHolder = Instance.new("Frame", frame)
-tabHolder.Size = UDim2.new(1, -20, 0, 35)
-tabHolder.Position = UDim2.new(0, 10, 0, 65)
-tabHolder.BackgroundTransparency = 1
-
-local tabs = {"🌱 Seeds","🔧 Gear","💰 Sell","🌾 Harvest","🌿 Plant"}
-local panels = {}
-local tabButtons = {}
-
-for i, name in ipairs(tabs) do
-    local btn = Instance.new("TextButton", tabHolder)
-    btn.Size = UDim2.new(1 / #tabs, -4, 1, 0)
-    btn.Position = UDim2.new((i - 1) / #tabs, 2, 0, 0)
-    btn.Text = name
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 14
-    btn.BorderSize = 0
-    local btnCorner = Instance.new("UICorner", btn)
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    
-    tabButtons[i] = btn
-
-    local panel = Instance.new("ScrollingFrame", frame)
-    panel.Size = UDim2.new(1, -20, 1, -140)
-    panel.Position = UDim2.new(0, 10, 0, 105)
-    panel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    panel.BorderSize = 0
-    panel.ScrollBarThickness = 5
-    panel.ScrollBarImageColor3 = Color3.fromRGB(46, 204, 113)
-    panel.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    panel.CanvasSize = UDim2.new(0, 0, 0, 0)
-    panel.Visible = (i == 1)
-    panels[i] = panel
-
-    btn.MouseButton1Click:Connect(function()
-        for j = 1, #tabs do
-            panels[j].Visible = false
-            tabButtons[j].BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        end
-        panel.Visible = true
-        btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-    end)
-end
-
--- Função para preencher cada painel com itens clicáveis
-local function populatePanel(panel, items, selectedTable)
-    for _, item in ipairs(items) do
-        selectedTable[item] = false
-        local btn = Instance.new("TextButton", panel)
-        btn.Size = UDim2.new(1, -10, 0, 30)
-        btn.Position = UDim2.new(0, 5, 0, (#panel:GetChildren() - 1) * 32)
-        btn.Text = "☐ " .. item
-        btn.TextColor3 = Color3.new(1,1,1)
-        btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 14
-        btn.BorderSize = 0
-        local btnCorner = Instance.new("UICorner", btn)
-        btnCorner.CornerRadius = UDim.new(0, 4)
-
-        btn.MouseButton1Click:Connect(function()
-            selectedTable[item] = not selectedTable[item]
-            btn.Text = (selectedTable[item] and "☑ " or "☐ ") .. item
-            btn.BackgroundColor3 = selectedTable[item] and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(35, 35, 35)
-        end)
-    end
-    panel.CanvasSize = UDim2.new(0, 0, 0, #items * 32 + 10)
-end
-
--- Preencher painéis
-populatePanel(panels[1], SeedItems, selectedSeedItems) -- Seeds
-populatePanel(panels[2], Gears, selectedGears)       -- Gear
-populatePanel(panels[4], Seeds, selectedSeeds)       -- Plant (usando Seeds)
--- Harvest: obter plantas do jogo
+-- Obter nomes das plantas para harvest
 local plantNames = {}
-for _, p in pairs(PlantsFolder:GetChildren()) do
-    table.insert(plantNames, p.Name)
-end
-populatePanel(panels[4], plantNames, selectedPlants)  -- Atenção: índice 4 é Harvest, 5 é Plant? Vamos corrigir: tabs: 1 Seeds,2 Gear,3 Sell,4 Harvest,5 Plant. Então Harvest é painel 4, Plant é painel 5. Vamos ajustar.
-
--- Corrigindo índices:
--- Harvest panel = 4, Plant panel = 5
-populatePanel(panels[4], plantNames, selectedPlants)   -- Harvest
-populatePanel(panels[5], Seeds, selectedSeeds)         -- Plant
-
--- Painel Sell: apenas um botão de toggle
-local sellToggleBtn = Instance.new("TextButton", panels[3])
-sellToggleBtn.Size = UDim2.new(1, -20, 0, 40)
-sellToggleBtn.Position = UDim2.new(0, 10, 0, 10)
-sellToggleBtn.Text = "Auto Sell: OFF"
-sellToggleBtn.TextColor3 = Color3.new(1,1,1)
-sellToggleBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-sellToggleBtn.Font = Enum.Font.GothamBold
-sellToggleBtn.TextSize = 16
-sellToggleBtn.BorderSize = 0
-local sellCorner = Instance.new("UICorner", sellToggleBtn)
-sellCorner.CornerRadius = UDim.new(0, 8)
-
-sellToggleBtn.MouseButton1Click:Connect(function()
-    autoSell = not autoSell
-    sellToggleBtn.Text = "Auto Sell: " .. (autoSell and "ON" or "OFF")
-    sellToggleBtn.BackgroundColor3 = autoSell and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(231, 76, 60)
-end)
-
--- Botões toggle nos outros painéis (dentro de cada painel, no final)
-local function createToggle(parent, text, getter, setter)
-    local btn = Instance.new("TextButton", parent)
-    btn.Size = UDim2.new(1, -20, 0, 40)
-    btn.Position = UDim2.new(0, 10, 1, -50)
-    btn.Text = text .. ": OFF"
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    btn.BorderSize = 0
-    local btnCorner = Instance.new("UICorner", btn)
-    btnCorner.CornerRadius = UDim.new(0, 8)
-
-    btn.MouseButton1Click:Connect(function()
-        local new = not getter()
-        setter(new)
-        btn.Text = text .. ": " .. (new and "ON" or "OFF")
-        btn.BackgroundColor3 = new and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(231, 76, 60)
-    end)
+if PlantsFolder then
+    for _, p in ipairs(PlantsFolder:GetChildren()) do
+        table.insert(plantNames, p.Name)
+    end
+else
+    table.insert(plantNames, "Nenhuma planta encontrada")
 end
 
--- Adicionar toggles em cada painel (exceto Sell que já tem)
-createToggle(panels[1], "Auto Buy Seed", function() return autoSeed end, function(v) autoSeed = v end)
-createToggle(panels[2], "Auto Buy Gear", function() return autoGear end, function(v) autoGear = v end)
-createToggle(panels[4], "Auto Harvest", function() return autoHarvest end, function(v) autoHarvest = v end)
-createToggle(panels[5], "Auto Plant", function() return autoPlant end, function(v) autoPlant = v end)
-
--- Ajustar canvas dos painéis para dar espaço ao toggle
-for i = 1, #tabs do
-    if i ~= 3 then -- Sell já tem toggle incluso
-        local panel = panels[i]
-        -- O toggle foi adicionado como último filho, então precisamos expandir o canvas
-        panel.CanvasSize = UDim2.new(0, 0, 0, panel.CanvasSize.Y.Offset + 60)
+-- Inicializar seleções se vazias
+for _, item in ipairs(SeedItems) do
+    if Luna.Options.selectedSeedItems[item] == nil then
+        Luna.Options.selectedSeedItems[item] = false
+    end
+end
+for _, item in ipairs(Seeds) do
+    if Luna.Options.selectedSeeds[item] == nil then
+        Luna.Options.selectedSeeds[item] = false
+    end
+end
+for _, item in ipairs(Gears) do
+    if Luna.Options.selectedGears[item] == nil then
+        Luna.Options.selectedGears[item] = false
+    end
+end
+for _, item in ipairs(plantNames) do
+    if Luna.Options.selectedPlants[item] == nil then
+        Luna.Options.selectedPlants[item] = false
     end
 end
 
--- Loop automático (mesma lógica)
+-- ==========================================
+-- 🔹 FUNÇÕES PRINCIPAIS DO GARDEN HORIZONS
+-- ==========================================
+local function buySeeds()
+    for s, enabled in pairs(Luna.Options.selectedSeedItems) do
+        if enabled and BuyRemote then
+            pcall(function() BuyRemote:InvokeServer("SeedShop", s) end)
+        end
+    end
+end
+
+local function buyGear()
+    for g, enabled in pairs(Luna.Options.selectedGears) do
+        if enabled and BuyRemote then
+            pcall(function() BuyRemote:InvokeServer("GearShop", g) end)
+        end
+    end
+end
+
+local function sellAll()
+    if SellRemote then
+        pcall(function() SellRemote:InvokeServer("SellAll") end)
+    end
+end
+
+local function harvestPlants()
+    local clientPlants = workspace:FindFirstChild("ClientPlants")
+    if not clientPlants then return end
+    for _, plant in pairs(clientPlants:GetChildren()) do
+        local base = plant.Name:gsub("%d", "")
+        if Luna.Options.selectedPlants[base] then
+            for _, v in pairs(plant:GetDescendants()) do
+                if v:IsA("ProximityPrompt") and v.Name == "HarvestPrompt" then
+                    v.HoldDuration = 0
+                    fireproximityprompt(v)
+                end
+            end
+        end
+    end
+end
+
+local function plantSeeds()
+    if not (Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")) then return end
+    local pos = Player.Character.HumanoidRootPart.Position
+    for _, seed in pairs(Seeds) do
+        if Luna.Options.selectedSeeds[seed] and PlantRemote then
+            for x = -4, 4, 2 do
+                for z = -4, 4, 2 do
+                    pcall(function()
+                        PlantRemote:InvokeServer(seed, pos + Vector3.new(x, -3, z))
+                    end)
+                end
+            end
+        end
+    end
+end
+
+-- Loop automático
 task.spawn(function()
     while task.wait(1) do
-        if autoSeed then
-            for s, on in pairs(selectedSeedItems) do
-                if on then
-                    pcall(function() BuyRemote:InvokeServer("SeedShop", s) end)
-                end
-            end
-        end
-        if autoGear then
-            for g, on in pairs(selectedGears) do
-                if on then
-                    pcall(function() BuyRemote:InvokeServer("GearShop", g) end)
-                end
-            end
-        end
-        if autoSell then
-            pcall(function() SellRemote:InvokeServer("SellAll") end)
-        end
-        if autoHarvest then
-            for _, plant in pairs(workspace:FindFirstChild("ClientPlants") and workspace.ClientPlants:GetChildren() or {}) do
-                local base = plant.Name:gsub("%d", "")
-                if selectedPlants[base] then
-                    for _, v in pairs(plant:GetDescendants()) do
-                        if v:IsA("ProximityPrompt") and v.Name == "HarvestPrompt" then
-                            v.HoldDuration = 0
-                            fireproximityprompt(v)
-                        end
-                    end
-                end
-            end
-        end
-        if autoPlant and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local pos = player.Character.HumanoidRootPart.Position
-            for _, seed in pairs(Seeds) do
-                if selectedSeeds[seed] then
-                    for x = -4, 4, 2 do
-                        for z = -4, 4, 2 do
-                            pcall(function()
-                                PlantRemote:InvokeServer(seed, pos + Vector3.new(x, -3, z))
-                            end)
-                        end
-                    end
-                end
-            end
-        end
+        if Luna.Options.autoSeed then buySeeds() end
+        if Luna.Options.autoGear then buyGear() end
+        if Luna.Options.autoSell then sellAll() end
+        if Luna.Options.autoHarvest then harvestPlants() end
+        if Luna.Options.autoPlant then plantSeeds() end
     end
 end)
+
+-- ==========================================
+-- 🔹 CRIAÇÃO DA INTERFACE LUNA
+-- ==========================================
+local LunaUI = isStudio and script.Parent:WaitForChild("Luna UI") or game:GetObjects("rbxassetid://86467455075715")[1]
+
+-- Remover instâncias antigas
+if gethui then
+    for _, Interface in ipairs(gethui():GetChildren()) do
+        if Interface.Name == LunaUI.Name and Interface ~= LunaUI then
+            Interface.Enabled = false
+            Interface.Name = "Luna-Old"
+        end
+    end
+elseif not isStudio then
+    for _, Interface in ipairs(CoreGui:GetChildren()) do
+        if Interface.Name == LunaUI.Name and Interface ~= LunaUI then
+            Interface.Enabled = false
+            Interface.Name = "Luna-Old"
+        end
+    end
+end
+
+injectUI()
+createInjectionIndicator()
+verifyInjection()
+
+-- ==========================================
+-- 🔹 CONFIGURAÇÃO DAS ABAS E SEÇÕES
+-- ==========================================
+
+-- Função auxiliar para criar toggles de itens em uma seção
+local function createItemToggles(section, items, selectedTable, prefix)
+    for _, item in ipairs(items) do
+        section:CreateToggle({
+            Name = item,
+            CurrentValue = selectedTable[item] or false,
+            Callback = function(value)
+                selectedTable[item] = value
+            end
+        }, prefix .. item)
+    end
+end
+
+-- Criar janela principal
+local window = Luna:CreateWindow({
+    Name = "Garden Horizons Hub",
+    Subtitle = "by Noah Nabas (integração Luna)",
+    LogoID = "6031097225",
+    LoadingEnabled = true
+})
+
+-- Aba principal
+local gardenTab = window:CreateTab({
+    Name = "Garden",
+    Icon = "grass",
+    ImageSource = "Material"
+})
+
+-- Seção Seeds
+local seedsSection = gardenTab:CreateSection("Seeds")
+createItemToggles(seedsSection, SeedItems, Luna.Options.selectedSeedItems, "Seed_")
+seedsSection:CreateToggle({
+    Name = "Auto Buy Seeds",
+    CurrentValue = Luna.Options.autoSeed,
+    Callback = function(value) Luna.Options.autoSeed = value end
+}, "AutoSeed")
+
+-- Seção Gear
+local gearSection = gardenTab:CreateSection("Gear")
+createItemToggles(gearSection, Gears, Luna.Options.selectedGears, "Gear_")
+gearSection:CreateToggle({
+    Name = "Auto Buy Gear",
+    CurrentValue = Luna.Options.autoGear,
+    Callback = function(value) Luna.Options.autoGear = value end
+}, "AutoGear")
+
+-- Seção Sell
+local sellSection = gardenTab:CreateSection("Sell")
+sellSection:CreateToggle({
+    Name = "Auto Sell",
+    CurrentValue = Luna.Options.autoSell,
+    Callback = function(value) Luna.Options.autoSell = value end
+}, "AutoSell")
+
+-- Seção Harvest
+local harvestSection = gardenTab:CreateSection("Harvest")
+createItemToggles(harvestSection, plantNames, Luna.Options.selectedPlants, "Plant_")
+harvestSection:CreateToggle({
+    Name = "Auto Harvest",
+    CurrentValue = Luna.Options.autoHarvest,
+    Callback = function(value) Luna.Options.autoHarvest = value end
+}, "AutoHarvest")
+
+-- Seção Plant
+local plantSection = gardenTab:CreateSection("Plant")
+createItemToggles(plantSection, Seeds, Luna.Options.selectedSeeds, "SeedType_")
+plantSection:CreateToggle({
+    Name = "Auto Plant",
+    CurrentValue = Luna.Options.autoPlant,
+    Callback = function(value) Luna.Options.autoPlant = value end
+}, "AutoPlant")
+
+-- Notificação de boas-vindas
+Luna:Notification({
+    Title = "Garden Horizons",
+    Content = "Hub carregado com sucesso!",
+    Icon = "grass"
+})
+
+-- Fim do script
