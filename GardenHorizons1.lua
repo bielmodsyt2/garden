@@ -1426,5 +1426,3 @@ task.spawn(function()
     end
 end)
 
-
-corrij essa src para quando eu quiser eu pode executar varias ui  pq se eu excutra 1 vez ele abre so 1 e se eu executra dnv ele nao abre mais nehum ui nova entendeu corrija
